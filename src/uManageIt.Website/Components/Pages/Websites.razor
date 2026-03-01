@@ -1,0 +1,123 @@
+@page "/websites"
+@inject IJSRuntime JS
+
+<PageTitle>Websites</PageTitle>
+
+<h1>My Websites</h1>
+
+<div class="card p-3 mb-4">
+    <h4>Register website</h4>
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input class="form-control" placeholder="Website name" @bind="newWebsiteName" />
+        </div>
+        <div class="col-md-5">
+            <input class="form-control" placeholder="Base URL" @bind="newWebsiteUrl" />
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-primary w-100" @onclick="RegisterWebsiteAsync">Create website</button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(lastApiKey))
+{
+    <div class="alert alert-warning">
+        <strong>New API key (copy now, shown once):</strong>
+        <div><code>@lastApiKey</code></div>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert alert-info">@message</div>
+}
+
+<button class="btn btn-outline-secondary mb-3" @onclick="LoadWebsitesAsync">Refresh</button>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Base URL</th>
+            <th>Created</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var site in websites)
+    {
+        <tr>
+            <td>@site.Name</td>
+            <td>@site.BaseUrl</td>
+            <td>@site.CreatedAtUtc.ToLocalTime()</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@code {
+    private List<WebsiteOverviewVm> websites = [];
+    private string newWebsiteName = string.Empty;
+    private string newWebsiteUrl = string.Empty;
+    private string message = string.Empty;
+    private string lastApiKey = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadWebsitesAsync();
+
+    private async Task LoadWebsitesAsync()
+    {
+        message = string.Empty;
+        try
+        {
+            websites = await JS.InvokeAsync<List<WebsiteOverviewVm>>("uManageItApi.request", "/api/websites/mine", "GET", null) ?? [];
+        }
+        catch (Exception ex)
+        {
+            message = $"Loading websites failed (are you logged in?): {ex.Message}";
+        }
+    }
+
+    private async Task RegisterWebsiteAsync()
+    {
+        message = string.Empty;
+        lastApiKey = string.Empty;
+
+        try
+        {
+            var created = await JS.InvokeAsync<RegisterWebsiteVm>("uManageItApi.request", "/api/websites/register", "POST", new
+            {
+                name = newWebsiteName,
+                baseUrl = newWebsiteUrl
+            });
+
+            if (created is not null)
+            {
+                lastApiKey = created.ApiKey;
+                message = "Website created.";
+                newWebsiteName = string.Empty;
+                newWebsiteUrl = string.Empty;
+                await LoadWebsitesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Register website failed: {ex.Message}";
+        }
+    }
+
+    private sealed class WebsiteOverviewVm
+    {
+        public Guid WebsiteId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string BaseUrl { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAtUtc { get; set; }
+    }
+
+    private sealed class RegisterWebsiteVm
+    {
+        public Guid WebsiteId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string BaseUrl { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+    }
+}

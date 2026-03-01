@@ -1,0 +1,212 @@
+@page "/dashboard"
+@inject IJSRuntime JS
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Dashboard</h1>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert alert-info">@message</div>
+}
+
+<div class="row g-2 align-items-end mb-3">
+    <div class="col-md-4">
+        <label class="form-label">Website</label>
+        <select class="form-select" @bind="selectedWebsiteId">
+            <option value="">Select website</option>
+            @foreach (var site in websites)
+            {
+                <option value="@site.WebsiteId">@site.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100" @onclick="LoadSummaryAsync">Load summary</button>
+    </div>
+</div>
+
+@if (summary is not null)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-2"><div class="card p-2"><strong>Online</strong><div>@summary.IsOnline</div></div></div>
+        <div class="col-md-2"><div class="card p-2"><strong>Avg RT</strong><div>@summary.AverageResponseTimeMs?.ToString("F2") ms</div></div></div>
+        <div class="col-md-2"><div class="card p-2"><strong>Avg CPU</strong><div>@summary.AverageCpuUsagePercent?.ToString("F2") %</div></div></div>
+        <div class="col-md-2"><div class="card p-2"><strong>Avg Memory</strong><div>@summary.AverageMemoryUsedMb?.ToString("F2") MB</div></div></div>
+        <div class="col-md-2"><div class="card p-2"><strong>Requests</strong><div>@summary.RequestsLast24Hours</div></div></div>
+    </div>
+}
+
+<h3>Generic metric query</h3>
+<div class="row g-2 align-items-end mb-3">
+    <div class="col-md-3">
+        <label class="form-label">Metric type</label>
+        <select class="form-select" @bind="selectedMetricType">
+            @foreach (var metricType in metricTypes)
+            {
+                <option value="@metricType">@metricType</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Aggregation</label>
+        <select class="form-select" @bind="selectedAggregation">
+            <option>Count</option>
+            <option>Average</option>
+            <option>Min</option>
+            <option>Max</option>
+            <option>Sum</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Numeric field</label>
+        <input class="form-control" @bind="numericField" placeholder="responseTimeMs" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Hours</label>
+        <input class="form-control" type="number" @bind="hours" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Bucket min</label>
+        <input class="form-control" type="number" @bind="bucketMinutes" />
+    </div>
+    <div class="col-md-1">
+        <button class="btn btn-success w-100" @onclick="QueryMetricAsync">Go</button>
+    </div>
+</div>
+
+@if (queryResult is not null)
+{
+    <div class="alert alert-secondary">
+        Overall value: <strong>@queryResult.OverallValue.ToString("F2")</strong>
+    </div>
+
+    <table class="table table-sm">
+        <thead><tr><th>Bucket</th><th>Value</th></tr></thead>
+        <tbody>
+            @foreach (var point in queryResult.Points)
+            {
+                <tr><td>@point.Bucket.LocalDateTime</td><td>@point.Value.ToString("F3")</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<WebsiteOverviewVm> websites = [];
+    private string selectedWebsiteId = string.Empty;
+    private SummaryVm? summary;
+    private List<string> metricTypes = [];
+    private string selectedMetricType = "request";
+    private string selectedAggregation = "Count";
+    private string numericField = string.Empty;
+    private int hours = 24;
+    private int bucketMinutes = 15;
+    private MetricQueryResultVm? queryResult;
+    private string message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            websites = await JS.InvokeAsync<List<WebsiteOverviewVm>>("uManageItApi.request", "/api/websites/mine", "GET", null) ?? [];
+            if (websites.Count > 0)
+            {
+                selectedWebsiteId = websites[0].WebsiteId.ToString();
+                await LoadMetricTypesAsync();
+                await LoadSummaryAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Failed to load dashboard. {ex.Message}";
+        }
+    }
+
+    private async Task LoadMetricTypesAsync()
+    {
+        if (!Guid.TryParse(selectedWebsiteId, out var websiteId)) return;
+
+        metricTypes = await JS.InvokeAsync<List<string>>("uManageItApi.request", $"/api/dashboard/sites/{websiteId}/metric-types?hours={hours}", "GET", null) ?? [];
+        if (metricTypes.Count > 0)
+        {
+            selectedMetricType = metricTypes[0];
+        }
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        message = string.Empty;
+        summary = null;
+        if (!Guid.TryParse(selectedWebsiteId, out var websiteId))
+        {
+            message = "Please select a website.";
+            return;
+        }
+
+        try
+        {
+            summary = await JS.InvokeAsync<SummaryVm>("uManageItApi.request", $"/api/dashboard/sites/{websiteId}/summary?hours={hours}", "GET", null);
+            await LoadMetricTypesAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Summary query failed: {ex.Message}";
+        }
+    }
+
+    private async Task QueryMetricAsync()
+    {
+        message = string.Empty;
+        queryResult = null;
+
+        if (!Guid.TryParse(selectedWebsiteId, out var websiteId))
+        {
+            message = "Please select a website.";
+            return;
+        }
+
+        try
+        {
+            queryResult = await JS.InvokeAsync<MetricQueryResultVm>("uManageItApi.request", $"/api/dashboard/sites/{websiteId}/metrics/query", "POST", new
+            {
+                metricType = selectedMetricType,
+                aggregation = selectedAggregation,
+                numericField = string.IsNullOrWhiteSpace(numericField) ? null : numericField,
+                hours,
+                bucketMinutes
+            });
+        }
+        catch (Exception ex)
+        {
+            message = $"Metric query failed: {ex.Message}";
+        }
+    }
+
+    private sealed class WebsiteOverviewVm
+    {
+        public Guid WebsiteId { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class SummaryVm
+    {
+        public bool IsOnline { get; set; }
+        public double? AverageResponseTimeMs { get; set; }
+        public double? AverageCpuUsagePercent { get; set; }
+        public double? AverageMemoryUsedMb { get; set; }
+        public int RequestsLast24Hours { get; set; }
+    }
+
+    private sealed class MetricQueryResultVm
+    {
+        public double OverallValue { get; set; }
+        public List<MetricPointVm> Points { get; set; } = [];
+    }
+
+    private sealed class MetricPointVm
+    {
+        public DateTimeOffset Bucket { get; set; }
+        public double Value { get; set; }
+    }
+}
