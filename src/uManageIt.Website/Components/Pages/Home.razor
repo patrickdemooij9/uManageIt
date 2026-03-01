@@ -1,7 +1,15 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>uManageIt Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>uManageIt</h1>
+<p>Manage all your Umbraco websites from a single dashboard.</p>
 
-Welcome to your new app.
+<h2>Getting started</h2>
+<ol>
+    <li>Create an account via <code>/account/register</code>.</li>
+    <li>Register your website via <code>POST /api/websites/register</code>.</li>
+    <li>Install <code>uManageIt.Core</code> into your Umbraco app and configure the API key.</li>
+    <li>Use <code>/api/dashboard/sites/{websiteId}/summary</code> for quick health cards.</li>
+    <li>Use <code>/api/dashboard/sites/{websiteId}/metric-types</code> and <code>/api/dashboard/sites/{websiteId}/metrics/query</code> for generic charting per metric type.</li>
+</ol>
