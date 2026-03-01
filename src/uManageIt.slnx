@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="uManageIt.Core/uManageIt.Core.csproj" />
+  <Project Path="uManageIt.Website/uManageIt.Website.csproj" Id="0c62fd23-5e22-4808-9895-b786729d6897" />
+</Solution>
