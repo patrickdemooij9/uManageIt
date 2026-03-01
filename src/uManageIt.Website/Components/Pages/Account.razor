@@ -1,0 +1,85 @@
+@page "/account-ui"
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Account</PageTitle>
+
+<h1>Account</h1>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <h3>Register</h3>
+        <div class="mb-2">
+            <label class="form-label">Email</label>
+            <input class="form-control" @bind="registerEmail" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input class="form-control" type="password" @bind="registerPassword" />
+        </div>
+        <button class="btn btn-primary" @onclick="RegisterAsync">Register</button>
+    </div>
+
+    <div class="col-md-6">
+        <h3>Login</h3>
+        <div class="mb-2">
+            <label class="form-label">Email</label>
+            <input class="form-control" @bind="loginEmail" />
+        </div>
+        <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input class="form-control" type="password" @bind="loginPassword" />
+        </div>
+        <button class="btn btn-success" @onclick="LoginAsync">Login</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert alert-info mt-3">@message</div>
+}
+
+@code {
+    private string registerEmail = string.Empty;
+    private string registerPassword = string.Empty;
+    private string loginEmail = string.Empty;
+    private string loginPassword = string.Empty;
+    private string message = string.Empty;
+
+    private async Task RegisterAsync()
+    {
+        message = string.Empty;
+        try
+        {
+            await JS.InvokeAsync<object>("uManageItApi.request", "/account/register", "POST", new
+            {
+                email = registerEmail,
+                password = registerPassword
+            });
+            message = "Registration successful. You can now log in.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Register failed: {ex.Message}";
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        message = string.Empty;
+        try
+        {
+            await JS.InvokeAsync<object>("uManageItApi.request", "/account/login?useCookies=true", "POST", new
+            {
+                email = loginEmail,
+                password = loginPassword
+            });
+            message = "Login successful.";
+            Navigation.NavigateTo("/websites", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            message = $"Login failed: {ex.Message}";
+        }
+    }
+}
